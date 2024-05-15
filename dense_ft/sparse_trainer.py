@@ -1,7 +1,7 @@
 from transformers.trainer import Trainer 
 import torch 
 import torch.nn as nn 
-
+#在模型的层次结构中查找指定类型的层，接受一个模型（通常是nn.Module对象）和一个包含要查找的层类型的列表作为输入，并返回一个字典，其中包含了模型中找到的每个指定类型的层
 def find_layers(module, layers=[nn.Linear], name=''):
     if type(module) in layers:
         return {name: module}
@@ -11,7 +11,7 @@ def find_layers(module, layers=[nn.Linear], name=''):
             child, layers=layers, name=name + '.' + name1 if name != '' else name1
         ))
     return res
-
+#修复梯度中出现的NaN和inf值
 def fix_grad_nan_inf(model):
     layers = model.model.layers
     count = 0 
@@ -21,7 +21,7 @@ def fix_grad_nan_inf(model):
     		if torch.isnan(m.grad).any() or torch.isinf(m.grad).any():
     			m.grad.zero_()
 
-
+#将梯度中的部分参数置零，以实现梯度掩码的效果。它接受一个模型作为输入，并遍历模型的所有层，将指定条件下的梯度置零
 def mask_grad(model):
     layers = model.model.layers
     count = 0 
@@ -36,7 +36,7 @@ def mask_grad(model):
             W = subset[name].weight.data
             mask = (W==0)
             subset[name].weight.grad[mask]= 0
- 
+ #检查模型中权重的稀疏度。它接受一个模型作为输入，并返回模型中所有权重中零值的比例
 def check_sparsity(model):
     use_cache = model.config.use_cache 
     model.config.use_cache = False 
@@ -62,7 +62,8 @@ def check_sparsity(model):
 
     model.config.use_cache = use_cache 
     return float(count)/total_params 
-
+#继承自Trainer类，并覆盖了其中的training_step和compute_loss方法。在training_step方法中，通过调用mask_grad函数实现了梯度掩码的功能，即将梯度中的部分参数置零；
+#在compute_loss方法中，添加了处理label smoothing的逻辑，并根据模型类型和返回结果的格式选择合适的处理方式
 class SparseTrainer(Trainer):
     def __init__(self, model= None, args= None, data_collator= None, train_dataset= None, eval_dataset= None, 
             tokenizer= None, model_init= None, compute_metrics= None, callbacks= None, optimizers= (None, None),
